@@ -60,6 +60,21 @@ with st.sidebar:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if message["role"] == "assistant" and message.get("evidence"):
+            ev = message["evidence"]
+            with st.expander("View source text"):
+                if ev.text:
+                    st.caption(
+                        f"Drug: {ev.drug_name}  |  Field: {ev.field}  |  "
+                        f"Source: {ev.source}  |  Drug ID: {ev.drug_id}"
+                    )
+                    st.text(ev.text)
+                else:
+                    st.caption(
+                        f"Drug: {ev.drug_name}  |  Field: {ev.field}  |  "
+                        f"Source: {ev.source}  |  Drug ID: {ev.drug_id}"
+                    )
+                    st.text("(no information available for this topic)")
 
 
 prompt = st.chat_input(
@@ -103,6 +118,7 @@ if prompt:
     st.session_state.messages.append({
         "role": "assistant",
         "content": answer,
+        "evidence": evidence,
     })
 
     with st.chat_message("assistant"):
