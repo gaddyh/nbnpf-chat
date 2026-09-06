@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from openai import OpenAI
 
-from src.models import Drug, Evidence
+from src.models import Drug, EvidenceBundle
 
 
 SYSTEM_PROMPT = """\
@@ -11,8 +11,13 @@ You are a helpful assistant for the NbN Patients & Families medication chatbot.
 You answer the patient's question using ONLY the provided evidence about the drug.
 Rules:
 - Use only the facts in <evidence>. Never invent, assume, or pull in outside knowledge.
-- If the evidence is empty, null, or does not cover the question, say you don't have
-  that information and suggest asking their clinician.
+- The evidence may contain multiple labeled sections. Use the relevant ones to
+  answer the question. For example, if the question is "why would it help with X?",
+  use the indication section to confirm X is a treated condition and the science
+  section to explain the mechanism — but do not invent connections beyond what
+  the text states.
+- If all evidence sections are empty or null, say you don't have that information
+  and suggest asking their clinician.
 - Write in plain, reassuring language for a patient/family member. Keep it concise.
 - Do not give dosing instructions or medical advice beyond what the evidence states.
 - End with a short line: "Source: NbN P&F" when evidence was used."""
@@ -33,7 +38,7 @@ class AnswerGenerator:
         self,
         question: str,
         drug: Drug | None,
-        evidence: Evidence | None,
+        evidence: EvidenceBundle | None,
     ) -> str:
         if not drug:
             return (
@@ -41,8 +46,12 @@ class AnswerGenerator:
                 "Could you name the drug (generic or brand name)?"
             )
 
-        if evidence and evidence.text:
-            evidence_str = evidence.text
+        if evidence and evidence.has_text:
+            sections = []
+            for section in evidence.sections:
+                text = section.text or "(no information available)"
+                sections.append(f"[{section.field}]\n{text}")
+            evidence_str = "\n\n".join(sections)
         else:
             evidence_str = "(no information available for this topic)"
 

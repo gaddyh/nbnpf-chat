@@ -76,6 +76,19 @@ class Evidence:
     drug_id: int | None
 
 
+@dataclass
+class EvidenceBundle:
+    drug_name: str
+    intent: str
+    sections: list[Evidence]
+    source: str
+    drug_id: int | None
+
+    @property
+    def has_text(self) -> bool:
+        return any(s.text for s in self.sections)
+
+
 class ParsedQuery(BaseModel):
     """Schema enforced by OpenAI Structured Outputs."""
 

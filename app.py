@@ -49,7 +49,8 @@ with st.sidebar:
         if evidence:
             st.write(f"**Source:** {evidence.source}")
             st.write(f"**Drug ID:** {evidence.drug_id}")
-            st.write(f"**Field:** {evidence.field}")
+            fields = [s.field for s in evidence.sections]
+            st.write(f"**Fields:** {', '.join(fields)}")
         else:
             st.write("**Source:** —")
             st.write("**Drug ID:** —")
@@ -61,20 +62,16 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant" and message.get("evidence"):
-            ev = message["evidence"]
+            bundle = message["evidence"]
             with st.expander("View source text"):
-                if ev.text:
-                    st.caption(
-                        f"Drug: {ev.drug_name}  |  Field: {ev.field}  |  "
-                        f"Source: {ev.source}  |  Drug ID: {ev.drug_id}"
-                    )
-                    st.text(ev.text)
-                else:
-                    st.caption(
-                        f"Drug: {ev.drug_name}  |  Field: {ev.field}  |  "
-                        f"Source: {ev.source}  |  Drug ID: {ev.drug_id}"
-                    )
-                    st.text("(no information available for this topic)")
+                st.caption(
+                    f"Drug: {bundle.drug_name}  |  Intent: {bundle.intent}  |  "
+                    f"Source: {bundle.source}  |  Drug ID: {bundle.drug_id}"
+                )
+                for section in bundle.sections:
+                    st.text(f"[{section.field}]")
+                    st.text(section.text or "(no information available)")
+                    st.text("")
 
 
 prompt = st.chat_input(

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.models import Evidence
+from src.models import EvidenceBundle
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +32,7 @@ SCENARIO_1 = [
         "drug_name": "Prozac",
         "resolved": "Fluoxetine",
         "intent": "approved_use",
+        "expected_fields": ["approved_uses"],
         "must_contain": ["Fluoxetine"],
     },
     {
@@ -39,13 +40,17 @@ SCENARIO_1 = [
         "drug_name": None,  # context fallback to Fluoxetine
         "resolved": "Fluoxetine",
         "intent": "science",
-        "must_contain": ["serotonin"],
+        # science bundle: science + approved_uses + additional_efficacy
+        "expected_fields": ["science", "approved_uses", "additional_efficacy"],
+        # With the bundle, the answer should connect mechanism to indication.
+        "must_contain": ["serotonin", "obsessive"],
     },
     {
         "question": "How long does it take to work?",
         "drug_name": None,
         "resolved": "Fluoxetine",
         "intent": "timeline_onset",
+        "expected_fields": ["timeline.onset"],
         "must_contain": ["week"],
     },
     {
@@ -53,6 +58,8 @@ SCENARIO_1 = [
         "drug_name": None,
         "resolved": "Fluoxetine",
         "intent": "addiction",
+        # addiction bundle: addiction + timeline.abrupt_discontinuation
+        "expected_fields": ["addiction", "timeline.abrupt_discontinuation"],
         "must_contain": ["not", "addictive"],
     },
 ]
@@ -75,6 +82,7 @@ SCENARIO_2 = [
         "drug_name": "Cymbalta",
         "resolved": "Duloxetine",
         "intent": "side_effects",
+        "expected_fields": ["side_effects"],
         "must_contain": ["sleep"],
     },
     {
@@ -82,6 +90,7 @@ SCENARIO_2 = [
         "drug_name": None,
         "resolved": "Duloxetine",
         "intent": "side_effects",
+        "expected_fields": ["side_effects"],
         "must_contain": ["sexual"],
     },
     {
@@ -89,6 +98,7 @@ SCENARIO_2 = [
         "drug_name": "Cymbalta",
         "resolved": "Duloxetine",
         "intent": "science",
+        "expected_fields": ["science", "approved_uses", "additional_efficacy"],
         "must_contain": ["serotonin"],
     },
     {
@@ -96,6 +106,7 @@ SCENARIO_2 = [
         "drug_name": None,
         "resolved": "Duloxetine",
         "intent": "discontinuation",
+        "expected_fields": ["timeline.abrupt_discontinuation"],
         # Duloxetine has no abrupt_discontinuation text -> honest "no info".
         "must_contain": ["don't have"],
         "must_not_contain": ["gradual dose reduction"],  # not in the data
@@ -135,19 +146,49 @@ def test_repository_unknown_drug_returns_none(repo):
 def test_repository_evidence_for_each_step(repo, scenario_name, steps):
     for step in steps:
         drug = repo.resolve_drug(step["drug_name"] or step["resolved"])
-        ev = repo.get_evidence(drug=drug, intent=step["intent"])
-        assert isinstance(ev, Evidence)
-        assert ev.drug_name == step["resolved"]
-        assert ev.field == step["intent"]
-        assert ev.source == "NbN P&F"
+        bundle = repo.get_evidence(drug=drug, intent=step["intent"])
+        assert isinstance(bundle, EvidenceBundle)
+        assert bundle.drug_name == step["resolved"]
+        assert bundle.intent == step["intent"]
+        assert bundle.source == "NbN P&F"
+        assert len(bundle.sections) == len(step["expected_fields"])
+        actual_fields = [s.field for s in bundle.sections]
+        assert actual_fields == step["expected_fields"], (
+            f"{scenario_name}: intent={step['intent']} -> "
+            f"fields={actual_fields}, expected {step['expected_fields']}"
+        )
 
 
 def test_repository_duloxetine_discontinuation_is_none(repo):
     """Documents the known data gap: Duloxetine has no abrupt_discontinuation."""
     drug = repo.resolve_drug("Duloxetine")
-    ev = repo.get_evidence(drug=drug, intent="discontinuation")
-    assert ev is not None
-    assert ev.text is None
+    bundle = repo.get_evidence(drug=drug, intent="discontinuation")
+    assert bundle is not None
+    assert len(bundle.sections) == 1
+    assert bundle.sections[0].text is None
+    assert not bundle.has_text
+
+
+def test_repository_addiction_bundle_has_companion(repo):
+    """addiction intent should pull both addiction + discontinuation fields."""
+    drug = repo.resolve_drug("Fluoxetine")
+    bundle = repo.get_evidence(drug=drug, intent="addiction")
+    assert bundle is not None
+    fields = [s.field for s in bundle.sections]
+    assert "addiction" in fields
+    assert "timeline.abrupt_discontinuation" in fields
+    assert bundle.has_text
+
+
+def test_repository_science_bundle_has_companions(repo):
+    """science intent should pull science + approved_uses + additional_efficacy."""
+    drug = repo.resolve_drug("Fluoxetine")
+    bundle = repo.get_evidence(drug=drug, intent="science")
+    assert bundle is not None
+    fields = [s.field for s in bundle.sections]
+    assert "science" in fields
+    assert "approved_uses" in fields
+    assert "additional_efficacy" in fields
 
 
 def test_repository_unknown_intent_returns_none(repo):
@@ -206,8 +247,8 @@ def test_generator_wording_across_scenario(parser, repo, generator, scenario_nam
         drug = repo.resolve_drug(q.drug_name)
         if drug:
             current_drug = drug["name"]
-        ev = repo.get_evidence(drug=drug, intent=q.intent)
-        answer = generator.generate(step["question"], drug, ev)
+        bundle = repo.get_evidence(drug=drug, intent=q.intent)
+        answer = generator.generate(step["question"], drug, bundle)
 
         assert answer, f"empty answer for {step['question']!r}"
         lower = answer.lower()
@@ -233,6 +274,6 @@ def test_generator_no_drug_message(generator):
 def test_generator_source_footer_when_evidence_present(parser, repo, generator):
     q = parser.parse("Is Prozac addictive?")
     drug = repo.resolve_drug(q.drug_name)
-    ev = repo.get_evidence(drug=drug, intent=q.intent)
-    answer = generator.generate("Is Prozac addictive?", drug, ev)
+    bundle = repo.get_evidence(drug=drug, intent=q.intent)
+    answer = generator.generate("Is Prozac addictive?", drug, bundle)
     assert "Source: NbN P&F" in answer
