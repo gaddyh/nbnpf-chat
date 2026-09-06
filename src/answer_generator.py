@@ -24,7 +24,7 @@ Rules:
 
 
 class AnswerGenerator:
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: str = "gpt-5.4-mini"):
         self._client: OpenAI | None = None
         self.model = model
 

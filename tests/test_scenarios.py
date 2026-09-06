@@ -108,7 +108,7 @@ SCENARIO_2 = [
         "intent": "discontinuation",
         "expected_fields": ["timeline.abrupt_discontinuation"],
         # Duloxetine has no abrupt_discontinuation text -> honest "no info".
-        "must_contain": ["don't have"],
+        "must_contain": ["don't have", "don’t have"],
         "must_not_contain": ["gradual dose reduction"],  # not in the data
     },
 ]
@@ -251,14 +251,15 @@ def test_generator_wording_across_scenario(parser, repo, generator, scenario_nam
         answer = generator.generate(step["question"], drug, bundle)
 
         assert answer, f"empty answer for {step['question']!r}"
-        lower = answer.lower()
+        # Normalize smart quotes so wording assertions are robust across models.
+        lower = answer.lower().replace("\u2019", "'").replace("\u2018", "'")
         for word in step["must_contain"]:
-            assert word.lower() in lower, (
+            assert word.lower().replace("\u2019", "'").replace("\u2018", "'") in lower, (
                 f"{scenario_name}: {step['question']!r} -> "
                 f"answer missing {word!r}\n--- answer ---\n{answer}"
             )
         for word in step.get("must_not_contain", []):
-            assert word.lower() not in lower, (
+            assert word.lower().replace("\u2019", "'").replace("\u2018", "'") not in lower, (
                 f"{scenario_name}: {step['question']!r} -> "
                 f"answer should not contain {word!r}\n--- answer ---\n{answer}"
             )
