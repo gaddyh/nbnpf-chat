@@ -1,12 +1,12 @@
 # NbN Patients & Families Chat
 
-A grounded medication information chatbot for the **NbN (Neuroscience-based Nomenclature) Patients & Families** drug corpus. Patients ask natural-language questions about their medications; the system answers using **only** curated NbN P&F source material — no hallucination, no outside knowledge.
+A grounded medication information chatbot for the **NbN (Neuroscience-based Nomenclature) Patients & Families** drug corpus. Patients ask natural-language questions about their medications; the system answers using **only** curated NbN P&F source material — designed to minimize unsupported answers and outside-knowledge leakage.
 
 > The Neuroscience-based Nomenclature (NbN) is an initiative aimed at updating the classification of psychiatric medication.
 
 ## Why this exists
 
-LLMs are good at sounding confident, which is dangerous in a medical context. This project constrains the LLM to a narrow role: **rephrase curated evidence, nothing more.** The architecture makes grounding visible — every answer links back to the exact source field and drug ID it was drawn from.
+LLMs are good at sounding confident, which is dangerous in a medical context. This project constrains the LLM to a narrow role: **interpret and rephrase only the supplied curated evidence.** The architecture makes grounding visible — every answer links back to the exact source field and drug ID it was drawn from.
 
 ## How it works
 
@@ -132,7 +132,7 @@ LLM tests are auto-skipped when `OPENAI_API_KEY` is not set.
 
 ## Data
 
-`data/nbnpf_drugs.json` contains 50 psychiatric medications. Each drug has:
+`data/nbnpf_drugs.json` contains 50 usable P&F medication records. Each record has:
 
 `id`, `name`, `brand_names`, `pharmacology`, `how_it_works`, `approved_uses`, `additional_efficacy`, `side_effects`, `addiction`, `timeline` (onset, maintenance, abrupt_discontinuation, important_aids), `why_take_it`, `science`, `_source`, `_quality_flags`
 
@@ -143,6 +143,21 @@ LLM tests are auto-skipped when `OPENAI_API_KEY` is not set.
 3. **Grounding is visible.** Sidebar + source expanders make it immediately clear which field and drug ID each answer came from — important for clinical trust.
 4. **Companion evidence prevents forced inference.** Bundling `science` + `approved_uses` for "why would it help with X?" means the model connects mechanism to indication using two grounded texts, not by inventing the link.
 5. **Static mapping over RAG.** With 50 drugs and 10 intents, a deterministic field map is simpler, faster, and more auditable than vector search. The right architecture for this corpus size.
+
+## Current scope
+
+This is a focused demo, not a clinical decision-support system.
+
+It can:
+- answer questions about medication information already present in NbN P&F
+- maintain simple drug context across follow-up questions
+- show the source evidence behind each answer
+
+It does not:
+- recommend which medication a patient should take
+- personalize treatment or dosing
+- use external medical knowledge
+- replace a clinician
 
 ## Tech stack
 
